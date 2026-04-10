@@ -5,11 +5,15 @@
 #
 # This file configures the build system for VASP using CMake.
 
+# 3.24 is required for CMAKE_DEPENDS_USE_COMPILER, which uses the compiler
+# for Fortran module dependency scanning instead of the legacy makedepend approach.
 cmake_minimum_required(VERSION 3.24 FATAL_ERROR)
 set(CMAKE_DEPENDS_USE_COMPILER TRUE)
 set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
-# tell find_package to  respect both LIBXC_ROOT and LibXC_ROOT (upper-case _ROOT is preferred, lowercase is still usable in the module)
-cmake_policy(SET CMP0144 NEW)
+# tell find_package to respect both LIBXC_ROOT and LibXC_ROOT (upper-case _ROOT is preferred, lowercase is still usable in the module)
+if(POLICY CMP0144)
+  cmake_policy(SET CMP0144 NEW)
+endif()
 
 # Start with a clean RPATH list
 set(CMAKE_INSTALL_RPATH "")
