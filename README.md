@@ -109,13 +109,15 @@ BLAS and LAPACK are mandatory and are detected via the default cmake packages. S
 
 ### GPU support (NVIDIA OpenACC)
 
-GPU offloading for NVIDIA GPUs is automatically attempted as soon as a nvhpc compiler is detected. By default it will build for GPUs present on the host system. To cross compile for other architectures use `-DCMAKE_CUDA_ARCHITECTURES` (see below). If `MKLROOT` is set nvhpc will automatically link these for host side blas/lapack calls.
+GPU offloading for NVIDIA GPUs is automatically attempted as soon as a nhvpc compiler is detected. By default it will build for GPUs present on the host system. To cross compile for other architectures use `-DCMAKE_CUDA_ARCHITECTURES` (see below and the official cmake doc [here](https://cmake.org/cmake/help/latest/variable/CMAKE_CUDA_ARCHITECTURES.html)). If `MKLROOT` is set nvhpc will automatically link these for host side blas/lapack calls.
+
+To enable GPU offloading for Intel or AMD GPUs you have to use either the Intel OneApi ifx compiler for Intel GPUs or crayftn for AMD GPUs and pass `-DVASP_OMP_OFFLOAD=ON`.All other options will be automatically set.
 
 Read the cmake output of the section `GPU support detection` carefully if all options are set correctly.
 
 - `-DVASP_CUDA=ON|OFF`: enable CUDA acceleration (default: OFF)
 - `-DVASP_CUDA_VERSION=<ver>`: CUDA version passed to NVHPC (example: `-DVASP_CUDA_VERSION=12.6`) (default: `Default`)
-- `-DCMAKE_CUDA_ARCHITECTURES=<cc-versions list>`: list of NVIDIA compute capabilities. Just pass the numbers. Example `-DCMAKE_CUDA_ARCHITECTURES=80` for adding `-gpu=cc80`. Use `native` for automatic detection (default: `native`).
+- `-DCMAKE_CUDA_ARCHITECTURES=<cc-versions list>`: list of nvidia compute capability / architectures. Just pass the numbers. Example `-DCMAKE_CUDA_ARCHITECTURES=100` for adding `-gpu=cc100` .
 - `-DVASP_USE_NCCL=ON|OFF`: enable NCCL support (default: ON)
 - `-DVASP_CUSOLVERMP=ON|OFF`: enable cuSOLVERmp/cublasmp (requires ScaLAPACK) (default: ON)
 
