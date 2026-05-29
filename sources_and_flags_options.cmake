@@ -173,15 +173,20 @@ elseif(CMAKE_Fortran_COMPILER_ID STREQUAL "NFORT")
   set(VASP_LINPACK_FORTRAN_FLAGS "${VASP_FORTRAN_FLAGS}" CACHE STRING "Fortran flags for linpack")
 
   # set default optimization flags.
-  set(VASP_OFLAG_DEFAULT "${_VASP_OFLAG_DEFAULT}" CACHE STRING "Default optimization flag")
-  set(VASP_OFLAG_DEB "${_VASP_OFLAG_DEB}" CACHE STRING "")
-  set(VASP_OFLAG_O1 "${_VASP_OFLAG_O1}" CACHE STRING "")
-  set(VASP_OFLAG_O2 "${_VASP_OFLAG_O2}" CACHE STRING "")
-  set(VASP_OFLAG_O3 "${_VASP_OFLAG_O3}" CACHE STRING "")
-  set(VASP_OFLAG_LIB "${_VASP_OFLAG_LIB}" CACHE STRING "")
-  set(VASP_OFLAG_C_LIB "${_VASP_OFLAG_C_LIB}" CACHE STRING "")
-  set(VASP_OFLAG_IN "${_VASP_OFLAG_IN}" CACHE STRING "")
-  set(VASP_OFLAG_MAIN "${_VASP_OFLAG_MAIN}" CACHE STRING "")
+  # NOTE: these are DERIVED from _VASP_OFLAG_DEFAULT (itself derived from the
+  # VASP_OFLAG override) and must be recomputed on every (re)configure.
+  # Without FORCE, a non-FORCE cache write is a no-op when the entry already
+  # exists, so changing -DVASP_OFLAG=... on a re-configure was silently ignored
+  # (stale -fast persisted). FORCE makes the override actually take effect.
+  set(VASP_OFLAG_DEFAULT "${_VASP_OFLAG_DEFAULT}" CACHE STRING "Default optimization flag" FORCE)
+  set(VASP_OFLAG_DEB "${_VASP_OFLAG_DEB}" CACHE STRING "" FORCE)
+  set(VASP_OFLAG_O1 "${_VASP_OFLAG_O1}" CACHE STRING "" FORCE)
+  set(VASP_OFLAG_O2 "${_VASP_OFLAG_O2}" CACHE STRING "" FORCE)
+  set(VASP_OFLAG_O3 "${_VASP_OFLAG_O3}" CACHE STRING "" FORCE)
+  set(VASP_OFLAG_LIB "${_VASP_OFLAG_LIB}" CACHE STRING "" FORCE)
+  set(VASP_OFLAG_C_LIB "${_VASP_OFLAG_C_LIB}" CACHE STRING "" FORCE)
+  set(VASP_OFLAG_IN "${_VASP_OFLAG_IN}" CACHE STRING "" FORCE)
+  set(VASP_OFLAG_MAIN "${_VASP_OFLAG_MAIN}" CACHE STRING "" FORCE)
   set(VASP_SOURCES_DEB "${_VASP_SOURCES_DEB}" CACHE STRING "")
   set(VASP_SOURCES_O1 "${_VASP_SOURCES_O1}" CACHE STRING "")
   set(VASP_SOURCES_O2 "${_VASP_SOURCES_O2}" CACHE STRING "")
