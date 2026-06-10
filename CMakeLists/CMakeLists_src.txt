@@ -1,3 +1,126 @@
+#--------------------------------------------------------------------
+# Generate a per-variant build_info.inc that embeds the CPP options and
+# the (best-effort) link line into the binary, reproducing the classic
+# makefile feature exposed via `vasp_std -c` and `vasp_std -l`.
+#
+# Written to ${out_dir}/build_info.inc at configure time. build_info.F is
+# then preprocessed from a copy placed in ${out_dir} so that its
+# `#include "build_info.inc"` resolves to this generated file (the
+# current-file directory takes precedence for quoted includes) instead of
+# the `Unknown` placeholder shipped in src/build_info.inc.
+#--------------------------------------------------------------------
+# Recursively resolve a list of link items (CMake targets + raw flags) into
+# actual linker arguments (library file paths, -l/-L flags, link options).
+# Imported/interface targets are walked via IMPORTED_LOCATION,
+# INTERFACE_LINK_OPTIONS and INTERFACE_LINK_LIBRARIES. A GLOBAL "visited"
+# property guards against cycles and duplicates; reset it before each
+# top-level call. Property reads never error, so this cannot break configure.
+function(_vasp_resolve_link_items out_var)
+  set(_out "")
+  foreach(_item IN LISTS ARGN)
+    if(NOT _item)
+      continue()
+    endif()
+    # unwrap a single simple generator expression: $<COND:payload> -> payload
+    # (CMake regex needs [$] for a literal '$'; \$ does not match)
+    string(REGEX REPLACE "^[$]<[^:]*:(.+)>$" "\\1" _item "${_item}")
+    # give up on anything still carrying genex/export markers we can't resolve
+    if(_item MATCHES "[$]<" OR _item MATCHES "::@")
+      continue()
+    endif()
+    if(TARGET ${_item})
+      get_property(_visited GLOBAL PROPERTY _vasp_bi_visited)
+      if(_item IN_LIST _visited)
+        continue()
+      endif()
+      set_property(GLOBAL APPEND PROPERTY _vasp_bi_visited ${_item})
+      # the actual library file, if this is an imported library
+      set(_loc "")
+      foreach(_p IMPORTED_LOCATION IMPORTED_LOCATION_RELEASE
+                 IMPORTED_LOCATION_RELWITHDEBINFO IMPORTED_LOCATION_NOCONFIG LOCATION)
+        get_target_property(_tmp ${_item} ${_p})
+        if(_tmp AND NOT _loc)
+          set(_loc "${_tmp}")
+        endif()
+      endforeach()
+      if(_loc)
+        list(APPEND _out "${_loc}")
+      endif()
+      get_target_property(_opts ${_item} INTERFACE_LINK_OPTIONS)
+      if(_opts)
+        foreach(_o IN LISTS _opts)
+          if(NOT _o MATCHES "[$]<")  # drop link options we can't resolve
+            list(APPEND _out "${_o}")
+          endif()
+        endforeach()
+      endif()
+      get_target_property(_deps ${_item} INTERFACE_LINK_LIBRARIES)
+      if(_deps)
+        _vasp_resolve_link_items(_sub ${_deps})
+        list(APPEND _out ${_sub})
+      endif()
+    else()
+      # raw string: a path or a -l/-L/-Wl,... flag
+      list(APPEND _out "${_item}")
+    endif()
+  endforeach()
+  set(${out_var} "${_out}" PARENT_SCOPE)
+endfunction()
+
+function(vasp_generate_build_info name pp_defs out_dir)
+  # helper: emit a Fortran continued string literal from a token list,
+  # matching the classic makefile layout:   lhs = '&\n&tok1 &\n...&tokN'
+  macro(_bi_emit out_var lhs)
+    set(_tokens ${ARGN})
+    list(LENGTH _tokens _n)
+    set(${out_var} "    character(len=*), parameter :: ${lhs} = '&\n")
+    set(_i 0)
+    foreach(_t IN LISTS _tokens)
+      math(EXPR _i "${_i}+1")
+      # the .inc is a single-quoted Fortran string, so embedded double
+      # quotes are literal and the command-line backslash-escaping is dropped
+      string(REPLACE "\\\"" "\"" _t "${_t}")
+      if(_i LESS _n)
+        string(APPEND ${out_var} "&${_t} &\n")
+      else()
+        string(APPEND ${out_var} "&${_t}'\n")
+      endif()
+    endforeach()
+    if(_n EQUAL 0)
+      string(APPEND ${out_var} "&Unknown'\n")
+    endif()
+  endmacro()
+
+  # cpp_options keeps its own (slightly different) classic layout where the
+  # closing quote sits on its own continuation line.
+  set(_cpp "    character(len=*), parameter :: cpp_options = '&\n")
+  foreach(_d IN LISTS pp_defs)
+    string(REPLACE "\\\"" "\"" _d "${_d}")
+    string(APPEND _cpp "&${_d} &\n")
+  endforeach()
+  string(APPEND _cpp "    &'\n")
+
+  # components of the link line. External libs are CMake (often imported)
+  # targets; resolve them to the real library paths / -l / -L flags. The
+  # in-tree object libraries (linpack/lib/parser) have no standalone file and
+  # are kept as their target names.
+  set(_fc "${CMAKE_Fortran_COMPILER}")
+  set(_linker_flags ${VASP_FORTRAN_LINKER_FLAGS} ${VASP_OFFLOAD_LINK_FLAGS})
+  set_property(GLOBAL PROPERTY _vasp_bi_visited "")
+  _vasp_resolve_link_items(_ext_resolved ${VASP_EXTERNAL_LIBS} ${VASP_OFFLOAD_LIBS})
+  set(_libs linpack_objects lib_objects parser_objects ${_ext_resolved})
+
+  _bi_emit(_link "link_line " ${_fc} ${_linker_flags} ${_libs})
+  _bi_emit(_fc_s "fc    " ${_fc})
+  _bi_emit(_fcl_s "fcl   " ${_fc} ${_linker_flags})
+  _bi_emit(_ff "fflags" ${VASP_FORTRAN_FLAGS} ${VASP_OFFLOAD_FLAGS} ${CMAKE_Fortran_FLAGS})
+  _bi_emit(_ll "llibs " ${_libs})
+  _bi_emit(_in "incs  " ${PREPROCESSOR_INCLUDE_FLAGS})
+
+  file(WRITE "${out_dir}/build_info.inc"
+    "${_cpp}${_link}${_fc_s}${_fcl_s}${_ff}${_ll}${_in}")
+endfunction()
+
 function(vasp_create_executable name sources)
   # preprocessing all sources
   set(PREPROCESSED_DIR "${CMAKE_CURRENT_BINARY_DIR}/${name}")
@@ -19,6 +142,24 @@ function(vasp_create_executable name sources)
   foreach(SOURCE_FILE ${sources})
     get_filename_component(FILE_NAME ${SOURCE_FILE} NAME_WE)
     set(PREPROCESSED_FILE ${PREPROCESSED_DIR}/${FILE_NAME}.f90)
+
+    if(SOURCE_FILE STREQUAL "build_info.F")
+      # Embed the real CPP/link/build info: generate the per-variant
+      # build_info.inc, then preprocess a copy of build_info.F that lives
+      # next to it so the quoted #include picks up the generated file.
+      vasp_generate_build_info(${name} "${PP_DEF_${name}}" ${PREPROCESSED_DIR})
+      set(_bi_copy ${PREPROCESSED_DIR}/build_info.F)
+      add_custom_command(
+        OUTPUT ${PREPROCESSED_FILE}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${PROJECT_SOURCE_DIR}/src/build_info.F ${_bi_copy}
+        COMMAND ${FPP_COMMAND} ${PP_DEF_${name}} ${PREPROCESSOR_INCLUDE_FLAGS} ${_bi_copy} > ${PREPROCESSED_FILE}
+        DEPENDS ${PROJECT_SOURCE_DIR}/src/build_info.F ${PREPROCESSED_DIR}/build_info.inc
+        COMMENT "Preprocessing build_info.F (with embedded build info) for ${name}"
+      )
+      list(APPEND PREPROCESSED_SOURCES ${PREPROCESSED_FILE})
+      continue()
+    endif()
 
     add_custom_command(
       OUTPUT ${PREPROCESSED_FILE}
