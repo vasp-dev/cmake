@@ -14,7 +14,8 @@
 # Imported/interface targets are walked via IMPORTED_LOCATION,
 # INTERFACE_LINK_OPTIONS and INTERFACE_LINK_LIBRARIES. A GLOBAL "visited"
 # property guards against cycles and duplicates; reset it before each
-# top-level call. Property reads never error, so this cannot break configure.
+# top-level call. This is informational only, so it must never hard-error:
+# location reads are restricted to imported targets (see CMP0026 below).
 function(_vasp_resolve_link_items out_var)
   set(_out "")
   foreach(_item IN LISTS ARGN)
@@ -34,15 +35,29 @@ function(_vasp_resolve_link_items out_var)
         continue()
       endif()
       set_property(GLOBAL APPEND PROPERTY _vasp_bi_visited ${_item})
-      # the actual library file, if this is an imported library
+      # the actual library file, if this is an imported library. Only imported
+      # targets may be queried for a location: reading LOCATION from an in-tree
+      # target is a hard error (CMP0026), so those keep their target name -
+      # just like the in-tree object libraries below.
       set(_loc "")
-      foreach(_p IMPORTED_LOCATION IMPORTED_LOCATION_RELEASE
-                 IMPORTED_LOCATION_RELWITHDEBINFO IMPORTED_LOCATION_NOCONFIG LOCATION)
-        get_target_property(_tmp ${_item} ${_p})
-        if(_tmp AND NOT _loc)
-          set(_loc "${_tmp}")
+      get_target_property(_imported ${_item} IMPORTED)
+      get_target_property(_type ${_item} TYPE)
+      if(_imported)
+        foreach(_p IMPORTED_LOCATION IMPORTED_LOCATION_RELEASE
+                   IMPORTED_LOCATION_RELWITHDEBINFO IMPORTED_LOCATION_NOCONFIG)
+          get_target_property(_tmp ${_item} ${_p})
+          if(_tmp AND NOT _loc)
+            set(_loc "${_tmp}")
+          endif()
+        endforeach()
+      elseif(NOT _type STREQUAL "INTERFACE_LIBRARY")
+        get_target_property(_alias ${_item} ALIASED_TARGET)
+        if(_alias)
+          set(_loc "${_alias}")
+        else()
+          set(_loc "${_item}")
         endif()
-      endforeach()
+      endif()
       if(_loc)
         list(APPEND _out "${_loc}")
       endif()
@@ -50,6 +65,7 @@ function(_vasp_resolve_link_items out_var)
       if(_opts)
         foreach(_o IN LISTS _opts)
           if(NOT _o MATCHES "[$]<")  # drop link options we can't resolve
+            string(REGEX REPLACE "^SHELL:" "" _o "${_o}")  # CMake-only marker
             list(APPEND _out "${_o}")
           endif()
         endforeach()
