@@ -190,13 +190,29 @@ function(vasp_create_executable name sources)
   # run preprocessing before compiling
   add_custom_target(${name}_pp DEPENDS ${PREPROCESSED_SOURCES})
 
+  # Warning suppression has to be applied per source, not target wide: -w (and
+  # Intel's -w0) inhibit every diagnostic and no later -Wall/-Wextra can undo
+  # that, so while they sit in VASP_FORTRAN_FLAGS the warning flags in
+  # VASP_OFLAG_DEB have no effect at all.  Take them out of the target flags
+  # here and re-apply them below to every source that is not being debugged.
+  set(_target_fortran_flags ${VASP_FORTRAN_FLAGS})
+  set(_quiet_flags)
+  foreach(_flag -w -w0)
+    if("${_flag}" IN_LIST VASP_FORTRAN_FLAGS)
+      list(APPEND _quiet_flags ${_flag})
+      list(REMOVE_ITEM _target_fortran_flags ${_flag})
+    endif()
+  endforeach()
+
   # set optimization flags
   foreach(pp_source ${PREPROCESSED_SOURCES})
     get_filename_component(source ${pp_source} NAME_WE)
+    set(_debug_source FALSE)
 
     # Set default optimization flag based on build type
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
       set(_opt_flag ${VASP_OFLAG_DEB})
+      set(_debug_source TRUE)
     else()
       set(_opt_flag ${VASP_OFLAG_DEFAULT})
       if(${source}.F IN_LIST VASP_SOURCES_O3)
@@ -216,10 +232,18 @@ function(vasp_create_executable name sources)
           message(STATUS "debugging for ${source} enabled. Flags: ${VASP_OFLAG_DEB}")
         endif()
         set(_opt_flag ${VASP_OFLAG_DEB})
+        set(_debug_source TRUE)
       endif()
       if(${source}.F STREQUAL "main.F")
+        # main.F keeps its own flags even when marked for debugging, so it also
+        # keeps the warning suppression the rest of the build uses.
         set(_opt_flag ${VASP_OFLAG_MAIN})
+        set(_debug_source FALSE)
       endif()
+    endif()
+
+    if(NOT _debug_source)
+      list(APPEND _opt_flag ${_quiet_flags})
     endif()
 
     list(JOIN _opt_flag " " _opt_flag_str) # convert list to string
@@ -229,7 +253,7 @@ function(vasp_create_executable name sources)
   # now create the actual target
   add_executable(${name} ${PREPROCESSED_SOURCES})
 
-  target_compile_options(${name} PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${VASP_FORTRAN_FLAGS}>)
+  target_compile_options(${name} PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${_target_fortran_flags}>)
   if(VASP_OFFLOAD_FLAGS)
     target_compile_options(${name} PRIVATE $<$<COMPILE_LANGUAGE:Fortran>:${VASP_OFFLOAD_FLAGS}>)
   endif()
