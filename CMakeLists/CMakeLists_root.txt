@@ -377,7 +377,7 @@ if(VASP_CUDA)
     set(NVHPC_INCLUDE "$ENV{NVROOT}/compilers/include")
   endif()
 
-  if(VASP_CUDA_VERSION AND NOT ${VASP_CUDA_VERSION} STREQUAL "Default")
+  if(VASP_CUDA_VERSION AND NOT "${VASP_CUDA_VERSION}" STREQUAL "Default")
     message(STATUS "CUDA version: ${VASP_CUDA_VERSION}")
     set(VASP_GPU_FLAG "${VASP_GPU_FLAG},cuda${VASP_CUDA_VERSION}")
   else()
