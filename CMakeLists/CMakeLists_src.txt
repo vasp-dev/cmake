@@ -190,17 +190,25 @@ function(vasp_create_executable name sources)
   # run preprocessing before compiling
   add_custom_target(${name}_pp DEPENDS ${PREPROCESSED_SOURCES})
 
-  # Warning suppression has to be applied per source, not target wide: -w (and
-  # Intel's -w0) inhibit every diagnostic and no later -Wall/-Wextra can undo
-  # that, so while they sit in VASP_FORTRAN_FLAGS the warning flags in
-  # VASP_OFLAG_DEB have no effect at all.  Take them out of the target flags
-  # here and re-apply them below to every source that is not being debugged.
-  set(_target_fortran_flags ${VASP_FORTRAN_FLAGS})
+  # Warning suppression must be per source, not target wide: -w and friends
+  # inhibit every diagnostic, so no later -Wall/-Wextra from VASP_OFLAG_DEB can
+  # re-enable anything.  Move them off the target and re-apply them below to
+  # every source that is not being debugged.
+  set(_target_fortran_flags)
   set(_quiet_flags)
-  foreach(_flag -w -w0)
-    if("${_flag}" IN_LIST VASP_FORTRAN_FLAGS)
-      list(APPEND _quiet_flags ${_flag})
-      list(REMOVE_ITEM _target_fortran_flags ${_flag})
+  set(_quiet_takes_value FALSE)
+  foreach(_flag IN LISTS VASP_FORTRAN_FLAGS)
+    if(_quiet_takes_value)
+      list(APPEND _quiet_flags "${_flag}")
+      set(_quiet_takes_value FALSE)
+    elseif("${_flag}" STREQUAL "-w" OR "${_flag}" STREQUAL "-w0")
+      list(APPEND _quiet_flags "${_flag}")
+    elseif("${_flag}" STREQUAL "-m" AND CMAKE_Fortran_COMPILER_ID STREQUAL "Cray")
+      # Cray spells it "-m <level>", so the level is a separate list element
+      list(APPEND _quiet_flags "${_flag}")
+      set(_quiet_takes_value TRUE)
+    else()
+      list(APPEND _target_fortran_flags "${_flag}")
     endif()
   endforeach()
 
@@ -234,11 +242,15 @@ function(vasp_create_executable name sources)
         set(_opt_flag ${VASP_OFLAG_DEB})
         set(_debug_source TRUE)
       endif()
-      if(${source}.F STREQUAL "main.F")
-        # main.F keeps its own flags even when marked for debugging, so it also
-        # keeps the warning suppression the rest of the build uses.
-        set(_opt_flag ${VASP_OFLAG_MAIN})
-        set(_debug_source FALSE)
+      # main.F needs its own flags.  When marked for debugging it keeps the debug
+      # flags and VASP_OFLAG_MAIN is appended instead, so main.F stays at -O0
+      # even for compilers whose VASP_OFLAG_DEB carries no -O of its own.
+      if("${source}.F" STREQUAL "main.F")
+        if(_debug_source)
+          list(APPEND _opt_flag ${VASP_OFLAG_MAIN})
+        else()
+          set(_opt_flag ${VASP_OFLAG_MAIN})
+        endif()
       endif()
     endif()
 
@@ -289,6 +301,12 @@ endfunction()
 set(VASP_SOURCES ${VASP_SOURCES} ${VASP_SOURCES_DEFAULT})
 list(APPEND VASP_SOURCES main.F)
 list(REMOVE_DUPLICATES VASP_SOURCES)
+
+# accept "a.F;b.F" as well as "a.F b.F": without this a space separated value
+# stays a single list element that none of the IN_LIST tests below can match,
+# so the files would be reported as marked but silently keep their normal flags
+string(REPLACE " " ";" VASP_SOURCES_DEB "${VASP_SOURCES_DEB}")
+list(FILTER VASP_SOURCES_DEB EXCLUDE REGEX "^$")
 
 if(NOT "${VASP_SOURCES_DEB}" STREQUAL "")
   message(STATUS "for debug marked files: ${VASP_SOURCES_DEB}")

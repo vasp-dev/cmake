@@ -132,4 +132,9 @@ See also [GPU ports of VASP](http://vasp.at/wiki/GPU_ports_of_VASP) for more det
 
 - `-DVASP_PP_EXTRA=<flags>`: extra preprocessor flags not covered by options above (default: empty)
 - `-DVASP_HOST_NAME=<name>`: host system name (default: `CMAKE_SYSTEM_NAME`)
-- `-DVASP_SOURCES_DEB=<files>`: files to compile with debug flags
+- `-DVASP_SOURCES_DEB=<files>`: files to compile with `VASP_OFLAG_DEB` instead of their
+  normal optimization flags, separated by `;` or spaces (example:
+  `-DVASP_SOURCES_DEB="reader.F;electron.F"`). These files are also the only ones compiled
+  without the target wide warning suppression, so the warning flags in `VASP_OFLAG_DEB`
+  take effect. Marking `main.F` overrides `VASP_OFLAG_MAIN`; it is the only way to make
+  gfortran's `-ffpe-trap` active, since that code is only emitted in the main program unit.
