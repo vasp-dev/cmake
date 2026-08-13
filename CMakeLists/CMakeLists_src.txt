@@ -302,11 +302,16 @@ set(VASP_SOURCES ${VASP_SOURCES} ${VASP_SOURCES_DEFAULT})
 list(APPEND VASP_SOURCES main.F)
 list(REMOVE_DUPLICATES VASP_SOURCES)
 
-# accept "a.F;b.F" as well as "a.F b.F": without this a space separated value
-# stays a single list element that none of the IN_LIST tests below can match,
-# so the files would be reported as marked but silently keep their normal flags
-string(REPLACE " " ";" VASP_SOURCES_DEB "${VASP_SOURCES_DEB}")
-list(FILTER VASP_SOURCES_DEB EXCLUDE REGEX "^$")
+# accept "a.F;b.F" as well as "a.F b.F" in the per-file flag lists: without this
+# a space separated value stays a single list element that none of the IN_LIST
+# tests in vasp_create_executable can match, so the files would be silently
+# compiled with their normal flags
+# the variables are spelled out in full because a bare "IN" is a foreach keyword
+foreach(_var VASP_SOURCES_DEB VASP_SOURCES_O1 VASP_SOURCES_O2
+             VASP_SOURCES_O3 VASP_SOURCES_IN)
+  string(REPLACE " " ";" ${_var} "${${_var}}")
+  list(FILTER ${_var} EXCLUDE REGEX "^$")
+endforeach()
 
 if(NOT "${VASP_SOURCES_DEB}" STREQUAL "")
   message(STATUS "for debug marked files: ${VASP_SOURCES_DEB}")
