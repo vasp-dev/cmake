@@ -116,6 +116,7 @@ option(VASP_USE_ERF "use internal ERF implementation" OFF)
 
 option(VASP_LIBBEEF "Enable libbeef for van-der-Waals functionals" OFF)
 option(VASP_DFTD4 "Enable DFTD4 library" OFF)
+option(VASP_LIBMBD "Enable libMBD many-body dispersion library" OFF)
 option(VASP_WANNIER90 "Enable Wannier90 library" OFF)
 option(VASP_HDF5 "Enable HDF5 library support" ON)
 option(VASP_LIBXC "Enable Libxc library" OFF)
@@ -344,6 +345,17 @@ if(VASP_DFTD4)
   endforeach()
 endif()
 
+if(VASP_LIBMBD)
+  find_package(LIBMBD MODULE REQUIRED)
+  list(APPEND VASP_EXTERNAL_LIBS LIBMBD::libmbd)
+  foreach(lib_path IN LISTS LIBMBD_LIBRARIES)
+    if(EXISTS "${lib_path}")
+      get_filename_component(lib_dir "${lib_path}" DIRECTORY)
+      list(APPEND VASP_EXTERNAL_LIB_DIRS "${lib_dir}")
+    endif()
+  endforeach()
+endif()
+
 #-----------------------------
 # GPU support
 #-----------------------------
@@ -555,6 +567,7 @@ set(VASP_DEFINITIONS
   $<$<BOOL:${VASP_LIBXC}>:USELIBXC>
   $<$<BOOL:${VASP_WANNIER90}>:VASP2WANNIER90>
   $<$<BOOL:${VASP_DFTD4}>:DFTD4>
+  $<$<BOOL:${VASP_LIBMBD}>:LIBMBD>
   $<$<BOOL:${VASP_QD_EMULATE}>:qd_emulate>
   $<$<BOOL:${VASP_USE_ERF}>:USE_ERF>
   # nvhpc already defines _OPENACC with "-acc", but not defining it seems to cause issues with dependency detection with make. Ninja works without it.
