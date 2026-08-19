@@ -329,8 +329,19 @@ if(VASP_WANNIER90)
   list(APPEND VASP_EXTERNAL_LIB_DIRS "${lib_dir}")
 endif()
 
-if(VASP_LIBBEEF OR VASP_DFTD4)
-  message(FATAL_ERROR "VASP_LIBBEEF and VASP_DFTD4 not yet supported through CMake.")
+if(VASP_LIBBEEF)
+  message(FATAL_ERROR "VASP_LIBBEEF not yet supported through CMake.")
+endif()
+
+if(VASP_DFTD4)
+  find_package(DFTD4 MODULE REQUIRED)
+  list(APPEND VASP_EXTERNAL_LIBS DFTD4::dftd4)
+  foreach(lib_path IN LISTS DFTD4_LIBRARIES)
+    if(EXISTS "${lib_path}")
+      get_filename_component(lib_dir "${lib_path}" DIRECTORY)
+      list(APPEND VASP_EXTERNAL_LIB_DIRS "${lib_dir}")
+    endif()
+  endforeach()
 endif()
 
 #-----------------------------
@@ -543,6 +554,7 @@ set(VASP_DEFINITIONS
   $<$<BOOL:${VASP_VASPML}>:libvaspml>
   $<$<BOOL:${VASP_LIBXC}>:USELIBXC>
   $<$<BOOL:${VASP_WANNIER90}>:VASP2WANNIER90>
+  $<$<BOOL:${VASP_DFTD4}>:DFTD4>
   $<$<BOOL:${VASP_QD_EMULATE}>:qd_emulate>
   $<$<BOOL:${VASP_USE_ERF}>:USE_ERF>
   # nvhpc already defines _OPENACC with "-acc", but not defining it seems to cause issues with dependency detection with make. Ninja works without it.

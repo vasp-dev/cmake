@@ -101,8 +101,8 @@ BLAS and LAPACK are mandatory and are detected via the default cmake packages. S
 - `-DVASP_SCALAPACK=ON|OFF`: enable ScaLAPACK, highly recommended (default: ON)
 - `-DVASP_HDF5=ON|OFF`: enable HDF5 support (default: ON)
 - `-DVASP_LIBXC=ON|OFF`: enable Libxc support (default: OFF)
-- `-DVASP_LIBBEEF=ON|OFF`: enable libbeef (van-der-Waals functionals) (default: OFF)
-- `-DVASP_DFTD4=ON|OFF`: enable DFTD4 (default: OFF)
+- `-DVASP_LIBBEEF=ON|OFF`: enable libbeef (van-der-Waals functionals), not supported yet (default: OFF)
+- `-DVASP_DFTD4=ON|OFF`: enable DFTD4 (default: OFF). Found via the CMake package config shipped with dftd4, otherwise via `DFTD4_ROOT`. Requires dftd4 3.7.0 or older: dftd4 4.0 changed the API and the adaptation is part of VASP.6.6.0, so a newer installation is rejected at configure time
 - `-DVASP_WANNIER90=ON|OFF`: enable Wannier90 (default: OFF)
 - `-DVASP_USE_NVPL=AUTO|ON|OFF`: Use NVIDIA NVPL BLAS/LAPACK/ScaLAPACK  (default:AUTO)
 - `-DVASP_VECLIBFORT=ON|OFF`: Use VecLibFort for BLAS/LAPACK on Mac OS to use the Accelerate framework (default:OFF)
