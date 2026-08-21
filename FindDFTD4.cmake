@@ -39,6 +39,22 @@ set(DFTD4_INCLUDE_DIRS)
 set(_DFTD4_LINK_TARGET)
 
 # ---------------------------------------------------------------------------
+# The dftd4 config package names OpenMP::OpenMP_Fortran in the link interface
+# of its imported targets, but includes those targets before it runs
+# find_dependency(OpenMP) itself. Without that target the generate step fails,
+# and VASP only searches OpenMP when VASP_OPENMP is ON - so make sure it exists.
+# If we are the ones creating it, the project is not built with OpenMP: keep the
+# runtime the external library needs, but do not let the OpenMP compile flag
+# propagate into the VASP sources.
+# ---------------------------------------------------------------------------
+if(NOT TARGET OpenMP::OpenMP_Fortran)
+  find_package(OpenMP QUIET COMPONENTS Fortran)
+  if(TARGET OpenMP::OpenMP_Fortran)
+    set_property(TARGET OpenMP::OpenMP_Fortran PROPERTY INTERFACE_COMPILE_OPTIONS "")
+  endif()
+endif()
+
+# ---------------------------------------------------------------------------
 # 1) preferred: the CMake package config shipped with dftd4 (>= 3.5)
 #    CONFIG mode only, so this never recurses back into this find module
 # ---------------------------------------------------------------------------
