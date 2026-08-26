@@ -5,6 +5,7 @@ find_program(RSYNC_EXECUTABLE rsync)
 if(RSYNC_EXECUTABLE)
   add_custom_target(copy_tests
       COMMAND rsync -a --update
+              --exclude tools/compare_numbertable_new
               "${CMAKE_CURRENT_SOURCE_DIR}/"
               "${CMAKE_CURRENT_BINARY_DIR}/"
       COMMENT "Copying testsuite"
@@ -33,10 +34,10 @@ add_custom_target(test
     COMMAND ${CMAKE_CURRENT_BINARY_DIR}/runtest --fast 2>&1 | tee testsuite.log
     COMMENT "Run the fast testsuite"
 )
-add_dependencies(test copy_tests)
+add_dependencies(test copy_tests compare_numbertable_new)
 
 add_custom_target(test_all
     COMMAND ${CMAKE_CURRENT_BINARY_DIR}/runtest --all 2>&1 | tee testsuite.log
     COMMENT "Run the full testsuite"
 )
-add_dependencies(test_all copy_tests)
+add_dependencies(test_all copy_tests compare_numbertable_new)
