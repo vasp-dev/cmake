@@ -70,11 +70,47 @@ BLAS and LAPACK are mandatory and are detected via the default cmake packages. S
 - `-DVASP_OPENMP=ON|OFF`: enable OpenMP (default: OFF)
 - `-DVASP_FFTLIB=ON|OFF`: enable internal FFTLIB (default: OFF)
 - `-DVASP_TESTSUITE=ON|OFF`: enable testsuite in build directory (default: ON)
+- `-DCMAKE_BUILD_TYPE=Release|Debug|RelWithDebInfo`: standard CMake build type, forced to
+  `Release` when left unset. `Debug` compiles *every* source with `VASP_OFLAG_DEB` and with
+  the target-wide warning suppression removed, which also bypasses all per-file lists in
+  [Per-file compilation flags](#per-file-compilation-flags) (including `VASP_OFLAG_MAIN`
+  for `main.F`) (default: `Release`)
 
 ### Optimization / CPU tuning
 
 - `-DVASP_OFLAG=<flag>`: override the default optimization flag (e.g. `-O2`, `-Ofast`) (default: according to arch/makefile.include default)
-- `-DVASP_TARGET_CPU=<arch>`: target CPU architecture (e.g. `native`, `skylake`, `zen3`) (default: empty or read from `${VASP_TARGET_CPU}`)
+- `-DVASP_TARGET_CPU=<arch>`: target CPU architecture (e.g. `native`, `skylake`, `zen3`) (default: empty or read from `${VASP_TARGET_CPU}`). A flag prefix is stripped, so `-march=haswell`, `-tp=zen3` etc. are accepted as well
+
+### Per-file compilation flags
+
+Every source is compiled with `VASP_OFLAG_DEFAULT` unless it is named in one of the lists
+below. All lists accept `;`- or space-separated file names, e.g.
+`-DVASP_SOURCES_O1="pead.F rot.F"`. When a file appears in more than one list the later
+entry in this table wins (`VASP_SOURCES_DEB` beats everything):
+
+- `-DVASP_SOURCES_O3=<files>`: compile with `VASP_OFLAG_O3`
+- `-DVASP_SOURCES_O2=<files>`: compile with `VASP_OFLAG_O2`
+- `-DVASP_SOURCES_O1=<files>`: compile with `VASP_OFLAG_O1`
+- `-DVASP_SOURCES_IN=<files>`: compile with `VASP_OFLAG_IN` (the `SOURCE_IN` group of
+  `src/.objects`, prefilled from that file)
+- `-DVASP_SOURCES_DEB=<files>`: files to compile with `VASP_OFLAG_DEB` instead of their
+  normal optimization flags (example: `-DVASP_SOURCES_DEB="reader.F;electron.F"`). These
+  files are also the only ones compiled without the target-wide warning suppression, so the
+  warning flags in `VASP_OFLAG_DEB` take effect. Marking `main.F` keeps `VASP_OFLAG_MAIN`
+  appended so it stays at `-O0`; it is the only way to make gfortran's `-ffpe-trap` active,
+  since that code is only emitted in the main program unit
+
+The `VASP_SOURCES_O1`/`O2`/`O3` defaults are compiler-dependent — some compilers need selected
+files at a lower level — so *append* to them rather than overwriting if you only want to add
+a file. Two more source lists exist:
+
+- `-DVASP_SOURCES=<files>`: additional files to build on top of `VASP_SOURCES_DEFAULT` (default: empty)
+- `VASP_SOURCES_DEFAULT`: the full default source list, read from `src/.objects`. Advanced, do not set by hand
+
+The `VASP_OFLAG_*` values referenced above are compiler-specific and derived on every
+configure; they cannot be set with `-D`. The general level is changed with
+`-DVASP_OFLAG=<flag>`, and the effective flags are printed in the options summary at the end
+of the configure run.
 
 ### MPI / runtime-related toggles
 
@@ -87,13 +123,20 @@ BLAS and LAPACK are mandatory and are detected via the default cmake packages. S
 
 - `-DVASP_AVOIDALLOC=ON|OFF`: avoid automatic allocation (default: ON)
 - `-DVASP_SHMEM=ON|OFF`: enable shared memory for reduced memory usage (default: OFF)
+- `-DVASP_SHMEM_BCAST=ON|OFF`: use a shared-memory buffer for MPI bcast (default: OFF).
+  Experimental, best left at the default
+- `-DVASP_SHMEM_RPROJ=ON|OFF`: use shared memory for the real-space PAW projectors (default: OFF).
+  Experimental, best left at the default
 - `-DVASP_SYSV=ON|OFF`: enable shared-memory for ipcs and System-V (default: OFF)
+- `-DVASP_FOCK_DBLBUF=ON|OFF`: double buffering for the exchange potential (default: ON).
+  On by default for a long time; there is no reason to turn it off
 
 ### VASP feature switches
 
 - `-DVASP_PLUGINS=ON|OFF`: enable VASP plugin support (default: OFF)
 - `-DVASP_VASPML=ON|OFF`: enable VASPml machine learning library (experimental). Builds `libvaspml`, links it into the VASP executables, and compiles standalone VASPml tools. Requires MPI CXX and a CBLAS provider (OpenBLAS, MKL, etc.). When using MKL with a non-Intel compiler, `VASPML_USE_MKL` is set automatically. (default: OFF)
-- `-DVASP_QD_EMULATE=ON|OFF`: use QD library for quadruple precision types (default: OFF)
+- `-DVASP_QD_EMULATE=ON|OFF`: use QD library for quadruple precision types (default: OFF).
+  Enabled automatically for compilers without native quadruple precision
 - `-DVASP_PROFILING=ON|OFF`: enable profiling (default: OFF)
 
 ### External library support
@@ -108,6 +151,7 @@ BLAS and LAPACK are mandatory and are detected via the default cmake packages. S
 - `-DVASP_LIBMBD=ON|OFF`: enable libMBD many-body dispersion (default: OFF). Found via the CMake package config shipped with libmbd (package `Mbd`), otherwise via `LIBMBD_ROOT`
 - `-DVASP_USE_NVPL=AUTO|ON|OFF`: Use NVIDIA NVPL BLAS/LAPACK/ScaLAPACK  (default:AUTO)
 - `-DVASP_VECLIBFORT=ON|OFF`: Use VecLibFort for BLAS/LAPACK on Mac OS to use the Accelerate framework (default:OFF)
+- `-DVASP_VECLIBFORT_ROOT=<path>`: root of the vecLibFort installation, e.g. a Homebrew Cellar path (default: `/opt/homebrew`)
 
 ### GPU / offloading
 
@@ -124,6 +168,9 @@ Read the cmake output of the section `GPU support detection` carefully if all op
 - `-DVASP_CUSOLVERMP=ON|OFF`: enable cuSOLVERmp/cublasmp (requires ScaLAPACK) (default: ON)
 - `-DVASP_OMP_OFFLOAD=ON|OFF`: enable OpenMP device offloading (default: OFF)
 - `-DVASP_INTEL_MKL=ON|OFF`: enable Intel MKL offloading (default: OFF)
+- `-DCMAKE_INTELGPU_ARCHITECTURES=<targets>`: OpenMP offload targets for the Intel GPU port,
+  example `-DCMAKE_INTELGPU_ARCHITECTURES=spir64_gen` (default: `default`, which selects `spir64_gen`)
+- `-DCMAKE_INTELGPU_DEVICE=<device>`: Intel GPU device for ahead-of-time compilation (default: `pvc`)
 - `-DVASP_ROCM_HIP=ON|OFF`: enable ROCm/HIP support for offloading (default: OFF)
 
 See also [GPU ports of VASP](http://vasp.at/wiki/GPU_ports_of_VASP) for more details.
@@ -136,10 +183,7 @@ See also [GPU ports of VASP](http://vasp.at/wiki/GPU_ports_of_VASP) for more det
 ### Misc
 
 - `-DVASP_PP_EXTRA=<flags>`: extra preprocessor flags not covered by options above (default: empty)
-- `-DVASP_HOST_NAME=<name>`: host system name (default: `CMAKE_SYSTEM_NAME`)
-- `-DVASP_SOURCES_DEB=<files>`: files to compile with `VASP_OFLAG_DEB` instead of their
-  normal optimization flags, separated by `;` or spaces (example:
-  `-DVASP_SOURCES_DEB="reader.F;electron.F"`). These files are also the only ones compiled
-  without the target wide warning suppression, so the warning flags in `VASP_OFLAG_DEB`
-  take effect. Marking `main.F` overrides `VASP_OFLAG_MAIN`; it is the only way to make
-  gfortran's `-ffpe-trap` active, since that code is only emitted in the main program unit.
+- `-DVASP_HOST_NAME=<name>`: host system name, ends up in the `HOST` string printed by VASP (default: `CMAKE_SYSTEM_NAME`)
+
+Per-source optimization flags are documented under
+[Per-file compilation flags](#per-file-compilation-flags).
