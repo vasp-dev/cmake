@@ -129,7 +129,16 @@ set(VASP_VECLIBFORT_ROOT "/opt/homebrew" CACHE STRING "Root path of the vecLibFo
 set(VASP_USE_NVPL "AUTO" CACHE STRING "Use NVIDIA NVPL BLAS/LAPACK/ScaLAPACK (AUTO|ON|OFF)")
 set_property(CACHE VASP_USE_NVPL PROPERTY STRINGS AUTO ON OFF)
 # CUDA / GPU options
-option(VASP_CUDA "Enable cuda accelaration" OFF)
+# AUTO = enable OpenACC if a CUDA compiler is found, ON = require, OFF = disable.
+# Drop a legacy BOOL entry: it stayed OFF even in OpenACC builds, so it is not a
+# user choice. A -DVASP_CUDA=OFF from the command line is still UNINITIALIZED here.
+get_property(_vasp_cuda_cache_type CACHE VASP_CUDA PROPERTY TYPE)
+if(_vasp_cuda_cache_type STREQUAL "BOOL")
+  unset(VASP_CUDA CACHE)
+endif()
+unset(_vasp_cuda_cache_type)
+set(VASP_CUDA "AUTO" CACHE STRING "Enable CUDA/OpenACC acceleration (AUTO|ON|OFF)")
+set_property(CACHE VASP_CUDA PROPERTY STRINGS AUTO ON OFF)
 set(VASP_CUDA_VERSION "Default" CACHE STRING "Set the CUDA version passed on to the NVHPC compiler. Example: -DVASP_CUDA_VERSION=12.6")
 option(VASP_USE_NCCL "Enable NCCL support" ON)
 option(VASP_CUSOLVERMP "Enable usage of cuSOLVERmp and cublasmp. Can only be used if build with ScaLAPACK" ON)
@@ -386,21 +395,41 @@ endif()
 # Find CUDA
 message(STATUS "-------- GPU support detection ----------")
 
-if(VASP_CUDA AND VASP_OMP_OFFLOAD)
-  message(FATAL_ERROR "VASP_CUDA and VASP_OMP_OFFLOAD are mutually exclusive. Please select only one.")
+# AUTO must stay distinct from an explicit OFF, or detection overrides the user.
+if(VASP_CUDA STREQUAL "AUTO")
+  set(_vasp_cuda_request AUTO)
+elseif(VASP_CUDA)
+  set(_vasp_cuda_request ON)
+else()
+  set(_vasp_cuda_request OFF)
 endif()
 
-if(NOT VASP_OMP_OFFLOAD)
+if(_vasp_cuda_request STREQUAL "ON" AND VASP_OMP_OFFLOAD)
+  message(FATAL_ERROR "VASP_CUDA=ON and VASP_OMP_OFFLOAD are mutually exclusive. Please select only one.")
+endif()
+
+if(_vasp_cuda_request STREQUAL "OFF" OR VASP_OMP_OFFLOAD)
+  set(VASP_CUDA OFF)
+  if(_vasp_cuda_request STREQUAL "OFF")
+    # USENCCL without NVCUDA does not compile; VASP_OMP_OFFLOAD has its own path.
+    set(VASP_USE_NCCL OFF)
+    message(STATUS "VASP_CUDA=OFF requested - OpenACC support disabled.")
+  endif()
+else()
   include(CheckLanguage)
   check_language(CUDA)
   if(CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
     set(VASP_CUDA ON)
+  elseif(_vasp_cuda_request STREQUAL "ON")
+    message(FATAL_ERROR "VASP_CUDA=ON was requested but no CUDA compiler was found.")
   else()
+    set(VASP_CUDA OFF)
     set(VASP_USE_NCCL OFF)
     message(STATUS "No CUDA capable compiler found - OpenACC support disabled.")
   endif()
 endif()
+unset(_vasp_cuda_request)
 
 if(VASP_CUDA)
   message(STATUS "CUDA and an offloading device was found enabling OpenACC port")
