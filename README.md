@@ -5,7 +5,20 @@ This repository contains the CMake build system files for VASP.
 After you downloaded an official VASP source tarball you can clone this repository and follow the steps outlined below to use cmake to build VASP.
 
 Branching follows VASP major releases: for each major release there is a matching
-branch named `6.6.x`, `6.5.x` etc.
+branch named `6.6.x`, `6.5.x` etc. Those branches roll: bug fixes and improvements to
+the build system land there continuously, so cloning a branch is the recommended way to
+build VASP and what the instructions below assume.
+
+Revisions of a branch are tagged `<series>-r<n>`, for example `6.6.x-r2`: revision *n*
+of the build system for the VASP 6.6 series. The counter belongs to this repository, not
+to VASP — it is bumped when the build system changes, not when VASP is released. So any
+`6.6.x-r*` tag builds any VASP `6.6.*`, and a fix made after `6.6.x-r1` simply becomes
+`6.6.x-r2`. Tags are never moved.
+
+Each tag has a matching [GitHub release](https://github.com/vasp-dev/cmake/releases)
+carrying a `cmake-<tag>.tar.gz` asset and its SHA256, for packaging systems such as
+Spack or EasyBuild that pin a fixed source and verify a checksum. Pin a tag when you
+need reproducibility; follow the branch when you want the fixes.
 
 Build steps using cmake:
 
