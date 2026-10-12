@@ -68,6 +68,8 @@ macro(find_ffftw_component name lib_name lib_symbol)
         if(FFTW_${name}_BLAS_SYMBOL)
             set(_FFTW_${name}_DEFAULT_PATH_SWITCH NO_DEFAULT_PATH)
             set(FFTW_${name}_LIBRARIES "BLAS::BLAS" CACHE STRING "" FORCE)
+            # headers are searched next to the BLAS library only, not under FFTW_ROOT
+            set(_FFTW_${name}_PATHS)
             foreach(blas_lib IN LISTS BLAS_LIBRARIES)
                 cmake_path(GET blas_lib PARENT_PATH blas_lib_dir)
                 cmake_path(GET blas_lib_dir PARENT_PATH blas_parent_lib_dir)
